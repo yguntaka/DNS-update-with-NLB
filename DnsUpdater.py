@@ -19,6 +19,7 @@ def lambda_handler(event, context):
         if event['RequestType'] == 'Delete':
             print("Request Type:",event['RequestType'])
             ELBID=event['ResourceProperties']['ELBID']
+            # Eventually, on-prem DNS update PUT or URL can go here
             HostedZoneID=get_elb(ELBID)
             responseData={'HostedZoneID':HostedZoneID}
             print("Sending response to custom resource")
