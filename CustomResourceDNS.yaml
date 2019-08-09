@@ -1,0 +1,135 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Template to create NLB and update on-prem DNS with fqdn of NLB 
+Parameters:
+  EnvironmentName:
+    Description: An environment name that will be prefixed to resource names
+    Type: String
+    Default: POC
+  VpcCIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 10.192.0.0/16
+  PrivateSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+    Type: String
+    Default: 10.192.20.0/24
+  PrivateSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+    Type: String
+    Default: 10.192.21.0/24
+  Bucket:
+    Type: String
+    Description: S3 Bucket name where code files are stored
+  Key:
+    Type: String
+    Description: Zip file name
+    Default: DnsUpdater.zip
+  Lambdahandler:
+    Type: String
+    Description: Name of the python file(lambda handler)
+    Default: DnsUpdater
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Ref EnvironmentName
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs  '' ]
+      CidrBlock: !Ref PrivateSubnet1CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Subnet (AZ1)
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref PrivateSubnet2CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Subnet (AZ2)
+  NLB1:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties: 
+      IpAddressType: ipv4
+      #LoadBalancerAttributes: 
+      Name: FsNlb01 #add vpc id to the name
+      Scheme: internal
+      #SecurityGroups: 
+      Subnets: 
+        - Ref: PrivateSubnet1
+        - Ref: PrivateSubnet2
+      #Tags: 
+      Type: network
+
+  LambdaIAMRole:
+    Type: 'AWS::IAM::Role'
+    DependsOn: VPC
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'ec2:Describe*'
+                  - 'elasticloadbalancing:Describe*'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: 'arn:aws:logs:*:*:*'
+  LambdaFunction1:
+    Type: 'AWS::Lambda::Function'
+    DependsOn: NLB1
+    Properties:
+      Handler: !Sub '${Lambdahandler}.lambda_handler'
+      Role: !GetAtt LambdaIAMRole.Arn
+      Code:
+        S3Bucket: !Ref Bucket
+        S3Key: !Ref Key
+      Runtime: python3.6
+      Timeout: 50
+  Lambdatrigger:
+    Type: 'Custom::DnsUpdaterLambda'
+    Properties:
+      ServiceToken: !GetAtt LambdaFunction1.Arn
+      #ELBID: !Ref NLB1
+      ELBID: 'FsNlb01'
+
+Outputs:
+  VPC:
+    Description: A reference to the created VPC
+    Value: !Ref VPC
+  PrivateSubnets:
+    Description: A list of the private subnets
+    Value: !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2 ]]
+  NLB:
+    Description: A reference to the NLB created
+    Value: !Ref NLB1
+  LambdaFunction1:
+    Description: A reference to the lambda function used in this stack
+    Value: !Ref LambdaFunction1
