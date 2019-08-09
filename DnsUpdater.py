@@ -20,6 +20,7 @@ def lambda_handler(event, context):
             print("Request Type:",event['RequestType'])
             ELBID=event['ResourceProperties']['ELBID']
             # Eventually, on-prem DNS update PUT or URL can go here
+            # For now, calling the function to describe elb and get hosted zone id
             HostedZoneID=get_elb(ELBID)
             responseData={'HostedZoneID':HostedZoneID}
             print("Sending response to custom resource")
@@ -45,7 +46,7 @@ def lambda_handler(event, context):
 def get_elb(ELBID):
     response = elb.describe_load_balancers(
     LoadBalancerNames=[
-        ELBID,
+        ELBID, # this is where I am seeing errors in stack creation as the describe elb call cant find the nlb passed (FsNlb1)
         ],
     )
     print("Printing the Hosted Zone for this ELB ....")
