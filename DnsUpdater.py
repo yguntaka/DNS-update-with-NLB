@@ -10,7 +10,7 @@ FAILED = "FAILED"
 
 print('Loading function')
 ec2 = boto3.client('ec2')
-elb = boto3.client('elb')
+elb = boto3.client('elbv2')
 
 def lambda_handler(event, context):
     print("Received event: " + json.dumps(event, indent=2))
@@ -19,23 +19,22 @@ def lambda_handler(event, context):
         if event['RequestType'] == 'Delete':
             print("Request Type:",event['RequestType'])
             ELBID=event['ResourceProperties']['ELBID']
-            # Eventually, on-prem DNS update PUT or URL can go here
-            # For now, calling the function to describe elb and get hosted zone id
-            HostedZoneID=get_elb(ELBID)
-            responseData={'HostedZoneID':HostedZoneID}
-            print("Sending response to custom resource")
+            print ("Deleting NLB:", ELBID, "Invoke on-prem DNS api here")
+            #HostedZoneID=get_elb(ELBID)
+            #responseData={'HostedZoneID':HostedZoneID}
+            print("This print message will be replaced by your api call to on-prem DNS")
         elif event['RequestType'] == 'Create':
             print("Request Type:",event['RequestType'])
             ELBID=event['ResourceProperties']['ELBID']
             HostedZoneID=get_elb(ELBID)
             responseData={'HostedZoneID':HostedZoneID}
-            print("Sending response to custom resource")
+            print("This print message will be replaced by your api call to on-prem DNS")
         elif event['RequestType'] == 'Update':
             print("Request Type:",event['RequestType'])
             ELBID=event['ResourceProperties']['ELBID']
             HostedZoneID=get_elb(ELBID)
             responseData={'HostedZoneID':HostedZoneID}
-            print("Sending response to custom resource")
+            print("This print message will be replaced by your api call to on-prem DNS")
         responseStatus = 'SUCCESS'
     except Exception as e:
         print('Failed to process:', e)
@@ -45,13 +44,15 @@ def lambda_handler(event, context):
 
 def get_elb(ELBID):
     response = elb.describe_load_balancers(
-    LoadBalancerNames=[
-        ELBID, # this is where I am seeing errors in stack creation as the describe elb call cant find the nlb passed (FsNlb1)
+    Names=[
+        ELBID,
         ],
     )
-    print("Printing the Hosted Zone for this ELB ....")
-    HostedZone=response['HostedZone'][1]['HostedZoneID']
-    print(HostedZoneID)
+
+    print("Printing the Hosted Zone Id & DNS Name for this NLB ....")
+    HostedZoneID=response["LoadBalancers"][0]['CanonicalHostedZoneId']
+    DnsName=response["LoadBalancers"][0]['DNSName']
+    print("HostedZoneID--> ",HostedZoneID, " DNSName--> ",DnsName)
     return HostedZoneID
 
 # Include DNS Update URL/end point here.
