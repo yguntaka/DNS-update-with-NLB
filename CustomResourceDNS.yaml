@@ -58,12 +58,12 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName} Private Subnet (AZ2)
-  NLB1:
+  NLB3:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties: 
       IpAddressType: ipv4
       #LoadBalancerAttributes: 
-      Name: FsNlb01 #add vpc id to the name
+      Name: FsNlb03 #add vpc id to the name
       Scheme: internal
       #SecurityGroups: 
       Subnets: 
@@ -104,7 +104,7 @@ Resources:
                 Resource: 'arn:aws:logs:*:*:*'
   LambdaFunction1:
     Type: 'AWS::Lambda::Function'
-    DependsOn: NLB1
+    DependsOn: NLB3
     Properties:
       Handler: !Sub '${Lambdahandler}.lambda_handler'
       Role: !GetAtt LambdaIAMRole.Arn
@@ -117,8 +117,9 @@ Resources:
     Type: 'Custom::DnsUpdaterLambda'
     Properties:
       ServiceToken: !GetAtt LambdaFunction1.Arn
-      #ELBID: !Ref NLB1
-      ELBID: 'FsNlb01'
+      Region: !Ref "AWS::Region"
+      ELBARN: !Ref NLB3
+      ELBID: 'FsNlb03'
 
 Outputs:
   VPC:
@@ -129,7 +130,7 @@ Outputs:
     Value: !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2 ]]
   NLB:
     Description: A reference to the NLB created
-    Value: !Ref NLB1
+    Value: !Ref NLB3
   LambdaFunction1:
     Description: A reference to the lambda function used in this stack
     Value: !Ref LambdaFunction1
